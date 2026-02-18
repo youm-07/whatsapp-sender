@@ -1,0 +1,3 @@
+phone,message,name
+919999999999,Hello {name}! This is a test message.,Test User
+918888888888,Hi {name}, your appointment is tomorrow.,Another User

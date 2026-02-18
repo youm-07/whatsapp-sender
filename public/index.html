@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp CSV Sender</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 24px;
+      background: #f9fafb;
+    }
+
+    .card {
+      max-width: 980px;
+      margin: 0 auto 20px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px;
+      background: #fff;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 12px;
+    }
+
+    h2 {
+      font-size: 16px;
+      margin: 0 0 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid #111827;
+      background: #111827;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.green {
+      background: #16a34a;
+      border-color: #16a34a;
+    }
+
+    button.red {
+      background: #dc2626;
+      border-color: #dc2626;
+    }
+
+    input[type=file] {
+      padding: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 8px;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .error {
+      color: #b91c1c;
+      font-size: 13px;
+    }
+
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .monitor-status {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: #f3f4f6;
+      font-size: 13px;
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #9ca3af;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .dot.on {
+      background: #16a34a;
+      box-shadow: 0 0 6px #16a34a88;
+    }
+
+    /* Screenshot Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.open {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 90vw;
+      max-height: 90vh;
+      text-align: center;
+      position: relative;
+    }
+
+    .modal img {
+      max-width: 100%;
+      max-height: 80vh;
+      border: 1px solid #ccc;
+      display: block;
+      margin-top: 10px;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      cursor: pointer;
+      font-size: 24px;
+      line-height: 1;
+      color: #666;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>WhatsApp CSV Sender</h1>
+    <div class="muted">CSV must have headers: <code>phone</code>, <code>message</code> (optional: <code>name</code>).
+    </div>
+
+    <div style="height: 12px"></div>
+
+    <div class="row">
+      <input id="file" type="file" accept=".csv,text/csv" />
+      <button id="parseBtn">Preview</button>
+      <a href="/api/sample-csv" download style="text-decoration:none">
+        <button type="button" id="downloadBtn" style="background:#ffffff;color:#111827">Download sample CSV</button>
+      </a>
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        Delay (ms)
+        <input id="delayMs" type="number" min="500" max="30000" step="500" value="6000"
+          style="width:110px;padding:8px;border-radius:10px;border:1px solid #e5e7eb" />
+      </label>
+      <button id="sendBtn" disabled>Send</button>
+    </div>
+
+    <div id="status" class="muted" style="margin-top: 10px"></div>
+    <div id="err" class="error" style="margin-top: 10px"></div>
+
+    <table id="table" style="display:none">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Phone</th>
+          <th>Name</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Auto-Click Monitor Mode -->
+  <div class="card">
+    <h2>⚡ Auto-Click Mode</h2>
+    <div class="muted" style="margin-bottom:12px">
+      <strong>CSV mode</strong> (if you've previewed a CSV above): opens each contact's chat, types the message, and
+      auto-clicks Send.<br>
+      <strong>Watch mode</strong> (no CSV): sits on WhatsApp Web and auto-clicks Send whenever you type a message
+      manually.
+    </div>
+    <div class="row">
+      <button id="monitorStartBtn" class="green">▶ Start Monitor</button>
+      <button id="monitorStopBtn" class="red" disabled>■ Stop Monitor</button>
+      <button id="viewScreenBtn" style="background:#4b5563;border-color:#4b5563">👁️ View Screen (QR)</button>
+      <span id="monitorMode" class="muted"></span>
+    </div>
+    <div class="monitor-status" id="monitorStatus">
+      <span><span class="dot" id="monitorDot"></span><span id="monitorState">Stopped</span></span>
+      <span>Clicks: <strong id="monitorClicks">0</strong></span>
+      <span id="monitorCurrent" class="muted"></span>
+      <span id="monitorLastClick" class="muted"></span>
+    </div>
+    <div id="monitorErr" class="error" style="margin-top:8px"></div>
+  </div>
+
+  <div id="screenModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn">&times;</span>
+      <h2>Remote Browser Screen</h2>
+      <div class="muted">Refreshes every 2s. Scan QR here if needed.</div>
+      <img id="screenImg" src="" alt="Loading..." />
+    </div>
+  </div>
+
+  <script>
+    const fileEl = document.getElementById('file');
+    const parseBtn = document.getElementById('parseBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const delayMsEl = document.getElementById('delayMs');
+    const statusEl = document.getElementById('status');
+    const errEl = document.getElementById('err');
+    const tableEl = document.getElementById('table');
+    const tbody = tableEl.querySelector('tbody');
+
+    let lastRows = [];
+
+    function setStatus(msg) { statusEl.textContent = msg || ''; }
+    function setError(msg) { errEl.textContent = msg || ''; }
+
+    parseBtn.addEventListener('click', async () => {
+      setError('');
+      setStatus('');
+      tableEl.style.display = 'none';
+      tbody.innerHTML = '';
+      lastRows = [];
+
+      const file = fileEl.files[0];
+      if (!file) { setError('Pick a CSV file first.'); return; }
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      parseBtn.disabled = true;
+      try {
+        setStatus('Parsing...');
+        const r = await fetch('/api/parse-csv', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Parse failed');
+
+        lastRows = data.rows || [];
+        setStatus(`Parsed ${data.count} rows. ${data.errors?.length ? 'Some rows had errors (not included).' : ''}`);
+
+        if (data.errors?.length) {
+          setError(`Errors in ${data.errors.length} row(s). Check CSV headers/values.`);
+        }
+
+        const preview = lastRows.slice(0, 50);
+        preview.forEach((row) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${row.id}</td><td>${row.phone}</td><td>${row.name || ''}</td><td>${row.message}</td>`;
+          tbody.appendChild(tr);
+        });
+        tableEl.style.display = preview.length ? 'table' : 'none';
+
+        sendBtn.disabled = lastRows.length === 0;
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        parseBtn.disabled = false;
+        setStatus(statusEl.textContent);
+      }
+    });
+
+    async function pollJob(jobId) {
+      while (true) {
+        const r = await fetch(`/api/job/${encodeURIComponent(jobId)}`);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed to read job');
+
+        setStatus(`Sending... ${data.done}/${data.total} | ok: ${data.ok} | failed: ${data.failed} | status: ${data.status}`);
+
+        if (data.status === 'finished') return data;
+        if (data.status === 'error') throw new Error(data.events?.slice(-1)?.[0]?.error || 'Job error');
+        await new Promise((r2) => setTimeout(r2, 1000));
+      }
+    }
+
+    sendBtn.addEventListener('click', async () => {
+      setError('');
+      if (!lastRows.length) { setError('No rows to send.'); return; }
+
+      const delayMs = Number(delayMsEl.value);
+      if (!Number.isFinite(delayMs) || delayMs < 500 || delayMs > 30000) {
+        setError('Delay must be between 500 and 30000 ms.');
+        return;
+      }
+
+      sendBtn.disabled = true;
+      parseBtn.disabled = true;
+
+      try {
+        setStatus('Starting sender... (WhatsApp Web window will open)');
+        const r = await fetch('/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rows: lastRows.map(r => ({ phone: r.phone, message: (r.message || '').replaceAll('{name}', r.name || '') })),
+            delayMs,
+          }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed to start job');
+        await pollJob(data.jobId);
+        setStatus('Done.');
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        parseBtn.disabled = false;
+        sendBtn.disabled = false;
+      }
+    });
+
+    // ── Auto-Click Monitor ──────────────────────────────────────────────────
+    const monitorStartBtn = document.getElementById('monitorStartBtn');
+    const monitorStopBtn = document.getElementById('monitorStopBtn');
+    const monitorDot = document.getElementById('monitorDot');
+    const monitorState = document.getElementById('monitorState');
+    const monitorClicks = document.getElementById('monitorClicks');
+    const monitorLastClick = document.getElementById('monitorLastClick');
+    const monitorCurrent = document.getElementById('monitorCurrent');
+    const monitorMode = document.getElementById('monitorMode');
+    const monitorErr = document.getElementById('monitorErr');
+
+    function setMonitorErr(msg) { monitorErr.textContent = msg || ''; }
+
+    function updateMonitorUI(data) {
+      monitorDot.className = 'dot' + (data.running ? ' on' : '');
+      monitorState.textContent = data.running ? 'Running' : 'Stopped';
+      monitorClicks.textContent = data.clicks ?? 0;
+      monitorCurrent.textContent = data.current ? `→ ${data.current}` : '';
+      monitorLastClick.textContent = data.lastClick
+        ? 'Last click: ' + new Date(data.lastClick).toLocaleTimeString()
+        : '';
+      monitorStartBtn.disabled = !!data.running;
+      monitorStopBtn.disabled = !data.running;
+    }
+
+    async function pollMonitorStatus() {
+      try {
+        const r = await fetch('/api/monitor/status');
+        const data = await r.json();
+        updateMonitorUI(data);
+      } catch (_) { }
+    }
+    setInterval(pollMonitorStatus, 1000);
+    pollMonitorStatus();
+
+    monitorStartBtn.addEventListener('click', async () => {
+      setMonitorErr('');
+      monitorStartBtn.disabled = true;
+
+      // If CSV rows are loaded, use CSV mode; otherwise watch mode
+      const hasRows = lastRows.length > 0;
+      monitorMode.textContent = hasRows ? `CSV mode (${lastRows.length} contacts)` : 'Watch mode';
+
+      const delayMs = Number(delayMsEl.value) || 4000;
+      const body = hasRows
+        ? {
+          rows: lastRows.map(r => ({ phone: r.phone, message: (r.message || '').replaceAll('{name}', r.name || '') })),
+          delayMs,
+        }
+        : {};
+
+      try {
+        const r = await fetch('/api/monitor/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed to start monitor');
+      } catch (e) {
+        setMonitorErr(e.message);
+        monitorStartBtn.disabled = false;
+      }
+    });
+
+    monitorStopBtn.addEventListener('click', async () => {
+      setMonitorErr('');
+      monitorStopBtn.disabled = true;
+      try {
+        const r = await fetch('/api/monitor/stop', { method: 'POST' });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed to stop monitor');
+        monitorMode.textContent = '';
+      } catch (e) {
+        setMonitorErr(e.message);
+      }
+    });
+
+    // ── View Screen Modal ───────────────────────────────────────────────────
+    const viewScreenBtn = document.getElementById('viewScreenBtn');
+    const screenModal = document.getElementById('screenModal');
+    const screenImg = document.getElementById('screenImg');
+    const closeBtn = document.querySelector('.close-btn');
+    let screenInterval = null;
+
+    function openModal() {
+      screenModal.classList.add('open');
+      refreshScreen();
+      screenInterval = setInterval(refreshScreen, 2000);
+    }
+
+    function closeModal() {
+      screenModal.classList.remove('open');
+      if (screenInterval) clearInterval(screenInterval);
+      screenInterval = null;
+    }
+
+    async function refreshScreen() {
+      const url = '/api/screenshot?t=' + Date.now();
+      // Preload to avoid blink
+      const img = new Image();
+      img.onload = () => { screenImg.src = url; };
+      img.src = url;
+    }
+
+    viewScreenBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    screenModal.addEventListener('click', (e) => {
+      if (e.target === screenModal) closeModal();
+    });
+  </script>
+</body>
+
+</html>
