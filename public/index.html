@@ -239,6 +239,13 @@
   </div>
 
   <script>
+    // Safe JSON parser — returns {} if body is empty or not valid JSON
+    async function safeJson(r) {
+      const text = await r.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch (_) { return { error: text }; }
+    }
+
     const fileEl = document.getElementById('file');
     const parseBtn = document.getElementById('parseBtn');
     const sendBtn = document.getElementById('sendBtn');
@@ -300,7 +307,7 @@
     async function pollJob(jobId) {
       while (true) {
         const r = await fetch(`/api/job/${encodeURIComponent(jobId)}`);
-        const data = await r.json();
+        const data = await safeJson(r);
         if (!r.ok) throw new Error(data.error || 'Failed to read job');
 
         setStatus(`Sending... ${data.done}/${data.total} | ok: ${data.ok} | failed: ${data.failed} | status: ${data.status}`);
@@ -334,7 +341,7 @@
             delayMs,
           }),
         });
-        const data = await r.json();
+        const data = await safeJson(r);
         if (!r.ok) throw new Error(data.error || 'Failed to start job');
         await pollJob(data.jobId);
         setStatus('Done.');
@@ -374,8 +381,8 @@
     async function pollMonitorStatus() {
       try {
         const r = await fetch('/api/monitor/status');
-        const data = await r.json();
-        updateMonitorUI(data);
+        const data = await safeJson(r);
+        if (data.running !== undefined) updateMonitorUI(data);
       } catch (_) { }
     }
     setInterval(pollMonitorStatus, 1000);
