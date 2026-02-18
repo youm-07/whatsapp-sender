@@ -23,13 +23,28 @@ async function getContext(sessionDir) {
   await ensureDir(sessionDir);
   const context = await chromium.launchPersistentContext(sessionDir, {
     headless: process.env.HEADLESS === 'true',
-    viewport: { width: 1400, height: 900 },
+    viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 1,
     userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
+      // Memory saving flags for low-RAM environments (Render free tier = 512MB)
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--hide-scrollbars',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-first-run',
+      '--safebrowsing-disable-auto-update',
+      '--js-flags=--max-old-space-size=256',
+      '--single-process',
     ],
   });
   return context;
